@@ -1,287 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import { User, MapPin, Phone, Mail, Clock, Package, CheckCircle, AlertCircle, Plus, Edit, Trash2, Eye, Search, Filter, Save, X, RefreshCw, Users } from 'lucide-react';
 
-// Enhanced API service for delivery agents with full CRUD operations
+// API service with backend integration
+const API_BASE_URL = 'http://localhost:5002/api';
+
 const deliveryAgentService = {
-  async getAllAgents() {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Mock data - replace with actual API call
-    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-    if (agents.length === 0) {
-      // Initialize with default data if empty
-      const defaultAgents = [
-        {
-          _id: '1',
-          agentId: 'DA001',
-          name: 'John Smith',
-          email: 'john.smith@delivery.com',
-          phoneNumber: '+1234567890',
-          location: 'Downtown District',
-          status: 'Active',
-          assignedOrders: 3,
-          completedDeliveries: 127,
-          rating: 4.8,
-          createdAt: '2024-01-15T08:00:00Z',
-          lastActive: '2024-09-24T10:30:00Z'
-        },
-        {
-          _id: '2',
-          agentId: 'DA002',
-          name: 'Sarah Johnson',
-          email: 'sarah.johnson@delivery.com',
-          phoneNumber: '+1234567891',
-          location: 'North Side',
-          status: 'Active',
-          assignedOrders: 5,
-          completedDeliveries: 89,
-          rating: 4.9,
-          createdAt: '2024-02-10T09:00:00Z',
-          lastActive: '2024-09-24T11:15:00Z'
-        },
-        {
-          _id: '3',
-          agentId: 'DA003',
-          name: 'Mike Wilson',
-          email: 'mike.wilson@delivery.com',
-          phoneNumber: '+1234567892',
-          location: 'East Valley',
-          status: 'Inactive',
-          assignedOrders: 0,
-          completedDeliveries: 234,
-          rating: 4.7,
-          createdAt: '2024-01-08T07:30:00Z',
-          lastActive: '2024-09-23T16:45:00Z'
-        }
-      ];
-      localStorage.setItem('deliveryAgents', JSON.stringify(defaultAgents));
-      return { success: true, data: defaultAgents };
+  async request(endpoint, options = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    try {
+      const response = await fetch(url, config);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('API request failed:', error);
+      throw error;
     }
-    return { success: true, data: agents };
+  },
+
+  async getAllAgents() {
+    return this.request('/delivery-agents');
   },
 
   async createAgent(agentData) {
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    
-    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-    
-    // Generate new agent ID
-    const lastAgentId = agents.length > 0 
-      ? Math.max(...agents.map(a => parseInt(a.agentId.replace('DA', '')))) 
-      : 0;
-    const newAgentId = `DA${String(lastAgentId + 1).padStart(3, '0')}`;
-    
-    const newAgent = {
-      _id: Date.now().toString(),
-      agentId: newAgentId,
-      ...agentData,
-      assignedOrders: 0,
-      completedDeliveries: 0,
-      rating: 0,
-      createdAt: new Date().toISOString(),
-      lastActive: new Date().toISOString()
-    };
-    
-    agents.push(newAgent);
-    localStorage.setItem('deliveryAgents', JSON.stringify(agents));
-    
-    return { success: true, data: newAgent, message: 'Delivery agent created successfully' };
+    return this.request('/delivery-agents', {
+      method: 'POST',
+      body: JSON.stringify(agentData),
+    });
   },
 
   async updateAgent(agentId, agentData) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-    const agentIndex = agents.findIndex(a => a._id === agentId);
-    
-    if (agentIndex === -1) {
-      throw new Error('Agent not found');
-    }
-    
-    agents[agentIndex] = { ...agents[agentIndex], ...agentData };
-    localStorage.setItem('deliveryAgents', JSON.stringify(agents));
-    
-    return { success: true, data: agents[agentIndex], message: 'Delivery agent updated successfully' };
+    return this.request(`/delivery-agents/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(agentData),
+    });
   },
 
   async deleteAgent(agentId) {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-    const filteredAgents = agents.filter(a => a._id !== agentId);
-    
-    if (agents.length === filteredAgents.length) {
-      throw new Error('Agent not found');
-    }
-    
-    localStorage.setItem('deliveryAgents', JSON.stringify(filteredAgents));
-    
-    return { success: true, message: 'Delivery agent deleted successfully' };
+    return this.request(`/delivery-agents/${agentId}`, {
+      method: 'DELETE',
+    });
   },
 
   async getUnassignedOrders() {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return {
-      success: true,
-      data: [
-        {
-          _id: '66f3a1b2c4d5e6f7g8h9i0j1',
-          customerName: 'Alice Brown',
-          customerAddress: '123 Main St, Downtown',
-          customerPhone: '+1234567893',
-          totalAmount: 45.50,
-          status: 'Pending',
-          createdAt: '2024-09-24T09:00:00Z',
-          orderItems: [
-            { name: 'Fresh Tomatoes', quantity: 2, price: 8.50 },
-            { name: 'Organic Lettuce', quantity: 1, price: 12.00 },
-            { name: 'Bell Peppers', quantity: 3, price: 25.00 }
-          ]
-        },
-        {
-          _id: '77f4b2c3d4e5f6g7h8i9j0k2',
-          customerName: 'Bob Davis',
-          customerAddress: '456 Oak Ave, North Side',
-          customerPhone: '+1234567894',
-          totalAmount: 78.25,
-          status: 'Pending',
-          createdAt: '2024-09-24T10:30:00Z',
-          orderItems: [
-            { name: 'Organic Carrots', quantity: 4, price: 16.00 },
-            { name: 'Fresh Spinach', quantity: 2, price: 14.25 },
-            { name: 'Cherry Tomatoes', quantity: 1, price: 48.00 }
-          ]
-        }
-      ]
-    };
+    return this.request('/order-assignments/unassigned');
   },
 
   async getAssignedOrders() {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Get assigned orders from localStorage or return mock data
-    const assignedOrders = JSON.parse(localStorage.getItem('assignedOrders') || '[]');
-    
-    if (assignedOrders.length === 0) {
-      const defaultAssigned = [
-        {
-          _id: 'assign1',
-          orderId: '88g5c3d4e5f6g7h8i9j0k3',
-          customerName: 'Emma Wilson',
-          customerAddress: '789 Pine St, West Side',
-          customerPhone: '+1234567895',
-          totalAmount: 92.75,
-          status: 'Assigned',
-          assignedAgent: 'DA001',
-          agentName: 'John Smith',
-          assignedAt: '2024-09-24T08:00:00Z',
-          createdAt: '2024-09-24T07:30:00Z',
-          orderItems: [
-            { name: 'Organic Apples', quantity: 3, price: 24.00 },
-            { name: 'Fresh Bread', quantity: 2, price: 18.75 },
-            { name: 'Milk', quantity: 1, price: 50.00 }
-          ]
-        },
-        {
-          _id: 'assign2',
-          orderId: '99h6d4e5f6g7h8i9j0k4',
-          customerName: 'Michael Chen',
-          customerAddress: '321 Elm Ave, East District',
-          customerPhone: '+1234567896',
-          totalAmount: 156.30,
-          status: 'In Progress',
-          assignedAgent: 'DA002',
-          agentName: 'Sarah Johnson',
-          assignedAt: '2024-09-24T09:15:00Z',
-          createdAt: '2024-09-24T08:45:00Z',
-          orderItems: [
-            { name: 'Premium Steak', quantity: 2, price: 85.00 },
-            { name: 'Organic Vegetables', quantity: 1, price: 45.30 },
-            { name: 'Wine', quantity: 1, price: 26.00 }
-          ]
-        }
-      ];
-      localStorage.setItem('assignedOrders', JSON.stringify(defaultAssigned));
-      return { success: true, data: defaultAssigned };
-    }
-    
-    return { success: true, data: assignedOrders };
+    return this.request('/order-assignments');
   },
 
-  async assignOrderToAgent(orderId, agentId) {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Update agent's assigned orders count
-    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-    const agentIndex = agents.findIndex(a => a.agentId === agentId);
-    
-    if (agentIndex !== -1) {
-      agents[agentIndex].assignedOrders += 1;
-      localStorage.setItem('deliveryAgents', JSON.stringify(agents));
-    }
-    
-    return { success: true, message: 'Order assigned successfully' };
+  async assignOrderToAgent(orderId, agentId, priority = 'Normal', notes = '') {
+    return this.request('/order-assignments', {
+      method: 'POST',
+      body: JSON.stringify({
+        orderId,
+        deliveryAgentId: agentId,
+        priority,
+        notes
+      }),
+    });
   },
 
-  async updateAssignedOrder(assignmentId, updateData) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const assignedOrders = JSON.parse(localStorage.getItem('assignedOrders') || '[]');
-    const assignmentIndex = assignedOrders.findIndex(a => a._id === assignmentId);
-    
-    if (assignmentIndex === -1) {
-      throw new Error('Assignment not found');
-    }
-    
-    // If reassigning to a different agent, update agent counts
-    if (updateData.assignedAgent && updateData.assignedAgent !== assignedOrders[assignmentIndex].assignedAgent) {
-      const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-      
-      // Decrease old agent's count
-      const oldAgentIndex = agents.findIndex(a => a.agentId === assignedOrders[assignmentIndex].assignedAgent);
-      if (oldAgentIndex !== -1) {
-        agents[oldAgentIndex].assignedOrders = Math.max(0, agents[oldAgentIndex].assignedOrders - 1);
-      }
-      
-      // Increase new agent's count
-      const newAgentIndex = agents.findIndex(a => a.agentId === updateData.assignedAgent);
-      if (newAgentIndex !== -1) {
-        agents[newAgentIndex].assignedOrders += 1;
-        updateData.agentName = agents[newAgentIndex].name;
-      }
-      
-      localStorage.setItem('deliveryAgents', JSON.stringify(agents));
-    }
-    
-    assignedOrders[assignmentIndex] = { ...assignedOrders[assignmentIndex], ...updateData };
-    localStorage.setItem('assignedOrders', JSON.stringify(assignedOrders));
-    
-    return { success: true, data: assignedOrders[assignmentIndex], message: 'Assignment updated successfully' };
+  async updateAssignedOrder(orderId, updateData) {
+    return this.request('/order-assignments', {
+      method: 'PUT',
+      body: JSON.stringify({
+        orderId,
+        ...updateData
+      }),
+    });
   },
 
-  async deleteAssignment(assignmentId) {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const assignedOrders = JSON.parse(localStorage.getItem('assignedOrders') || '[]');
-    const assignment = assignedOrders.find(a => a._id === assignmentId);
-    
-    if (!assignment) {
-      throw new Error('Assignment not found');
-    }
-    
-    // Decrease agent's assigned orders count
-    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
-    const agentIndex = agents.findIndex(a => a.agentId === assignment.assignedAgent);
-    if (agentIndex !== -1) {
-      agents[agentIndex].assignedOrders = Math.max(0, agents[agentIndex].assignedOrders - 1);
-      localStorage.setItem('deliveryAgents', JSON.stringify(agents));
-    }
-    
-    const filteredAssignments = assignedOrders.filter(a => a._id !== assignmentId);
-    localStorage.setItem('assignedOrders', JSON.stringify(filteredAssignments));
-    
-    return { success: true, message: 'Assignment deleted successfully' };
+  async deleteAssignment(orderId) {
+    return this.request(`/order-assignments/${orderId}`, {
+      method: 'DELETE',
+    });
   }
 };
 
@@ -299,11 +102,11 @@ const AgentManagementDashboard = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
-  // New states for assigned orders management
+  // Assignment management states
   const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [assignmentFormData, setAssignmentFormData] = useState({
-    assignedAgent: '',
+    deliveryAgentId: '',
     status: 'Assigned',
     priority: 'Normal',
     notes: ''
@@ -311,7 +114,7 @@ const AgentManagementDashboard = () => {
   const [savingAssignment, setSavingAssignment] = useState(false);
   const [deletingAssignment, setDeletingAssignment] = useState(null);
   
-  // Existing states for agent CRUD operations
+  // Agent CRUD states
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
   const [agentFormData, setAgentFormData] = useState({
@@ -332,6 +135,8 @@ const AgentManagementDashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const [agentsResponse, unassignedResponse, assignedResponse] = await Promise.all([
         deliveryAgentService.getAllAgents(),
         deliveryAgentService.getUnassignedOrders(),
@@ -341,38 +146,31 @@ const AgentManagementDashboard = () => {
       setAgents(agentsResponse.data || []);
       setUnassignedOrders(unassignedResponse.data || []);
       setAssignedOrders(assignedResponse.data || []);
-      setError(null);
+      
     } catch (err) {
-      setError('Failed to fetch data');
       console.error('Error fetching data:', err);
+      setError('Failed to fetch data from server. Please make sure the backend is running.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAssignOrder = async (orderId, agentId) => {
+  const handleAssignOrder = async (orderId, agentId, priority = 'Normal', notes = '') => {
     try {
       setAssigningOrder(orderId);
-      await deliveryAgentService.assignOrderToAgent(orderId, agentId);
       
-      // Update local state
-      setUnassignedOrders(prev => prev.filter(order => order._id !== orderId));
-      setAgents(prev => prev.map(agent => 
-        agent.agentId === agentId 
-          ? { ...agent, assignedOrders: agent.assignedOrders + 1 }
-          : agent
-      ));
+      await deliveryAgentService.assignOrderToAgent(orderId, agentId, priority, notes);
       
-      // Refresh assigned orders
-      const assignedResponse = await deliveryAgentService.getAssignedOrders();
-      setAssignedOrders(assignedResponse.data || []);
+      // Refresh data after successful assignment
+      await fetchData();
       
       setShowAssignModal(false);
       setSelectedOrder(null);
       alert('Order assigned successfully!');
+      
     } catch (err) {
-      setError('Failed to assign order');
       console.error('Error assigning order:', err);
+      setError('Failed to assign order: ' + err.message);
     } finally {
       setAssigningOrder(null);
     }
@@ -382,7 +180,7 @@ const AgentManagementDashboard = () => {
   const openEditAssignmentModal = (assignment) => {
     setEditingAssignment(assignment);
     setAssignmentFormData({
-      assignedAgent: assignment.assignedAgent || '',
+      deliveryAgentId: assignment.assignedAgent || '',
       status: assignment.status || 'Assigned',
       priority: assignment.priority || 'Normal',
       notes: assignment.notes || ''
@@ -394,68 +192,50 @@ const AgentManagementDashboard = () => {
     try {
       setSavingAssignment(true);
       
-      const response = await deliveryAgentService.updateAssignedOrder(
-        editingAssignment._id, 
+      await deliveryAgentService.updateAssignedOrder(
+        editingAssignment.orderId, 
         assignmentFormData
       );
       
-      setAssignedOrders(prev => prev.map(assignment => 
-        assignment._id === editingAssignment._id ? response.data : assignment
-      ));
-      
-      // Refresh agents data to update counts
-      const agentsResponse = await deliveryAgentService.getAllAgents();
-      setAgents(agentsResponse.data || []);
+      // Refresh data
+      await fetchData();
       
       setShowEditAssignmentModal(false);
       setEditingAssignment(null);
       alert('Assignment updated successfully!');
+      
     } catch (err) {
-      setError('Failed to update assignment');
       console.error('Error updating assignment:', err);
+      setError('Failed to update assignment: ' + err.message);
     } finally {
       setSavingAssignment(false);
     }
   };
 
   const handleDeleteAssignment = async (assignment) => {
-    if (!window.confirm(`Are you sure you want to delete assignment for order ${assignment.orderId}? This will make the order unassigned again.`)) {
+    if (!window.confirm(`Are you sure you want to unassign order ${assignment.orderId}? This will return the order to the unassigned list.`)) {
       return;
     }
 
     try {
-      setDeletingAssignment(assignment._id);
-      await deliveryAgentService.deleteAssignment(assignment._id);
+      setDeletingAssignment(assignment.orderId);
       
-      setAssignedOrders(prev => prev.filter(a => a._id !== assignment._id));
+      await deliveryAgentService.deleteAssignment(assignment.orderId);
       
-      // Add order back to unassigned orders
-      const orderData = {
-        _id: assignment.orderId,
-        customerName: assignment.customerName,
-        customerAddress: assignment.customerAddress,
-        customerPhone: assignment.customerPhone,
-        totalAmount: assignment.totalAmount,
-        status: 'Pending',
-        createdAt: assignment.createdAt,
-        orderItems: assignment.orderItems || []
-      };
-      setUnassignedOrders(prev => [...prev, orderData]);
+      // Refresh data
+      await fetchData();
       
-      // Refresh agents data to update counts
-      const agentsResponse = await deliveryAgentService.getAllAgents();
-      setAgents(agentsResponse.data || []);
+      alert('Order unassigned successfully!');
       
-      alert('Assignment deleted successfully!');
     } catch (err) {
-      setError('Failed to delete assignment');
       console.error('Error deleting assignment:', err);
+      setError('Failed to unassign order: ' + err.message);
     } finally {
       setDeletingAssignment(null);
     }
   };
 
-  // Agent CRUD operations (existing code)
+  // Agent CRUD operations
   const validateAgentForm = () => {
     const errors = {};
     
@@ -475,16 +255,6 @@ const AgentManagementDashboard = () => {
     
     if (!agentFormData.location.trim()) {
       errors.location = 'Location is required';
-    }
-    
-    // Check for duplicate email (excluding current agent when editing)
-    const existingAgent = agents.find(agent => 
-      agent.email === agentFormData.email && 
-      (editingAgent ? agent._id !== editingAgent._id : true)
-    );
-    
-    if (existingAgent) {
-      errors.email = 'Email already exists';
     }
     
     setFormErrors(errors);
@@ -526,24 +296,22 @@ const AgentManagementDashboard = () => {
       setSavingAgent(true);
       
       if (editingAgent) {
-        // Update existing agent
-        const response = await deliveryAgentService.updateAgent(editingAgent._id, agentFormData);
-        setAgents(prev => prev.map(agent => 
-          agent._id === editingAgent._id ? response.data : agent
-        ));
+        await deliveryAgentService.updateAgent(editingAgent._id || editingAgent.agentId, agentFormData);
         alert('Agent updated successfully!');
       } else {
-        // Create new agent
-        const response = await deliveryAgentService.createAgent(agentFormData);
-        setAgents(prev => [...prev, response.data]);
+        await deliveryAgentService.createAgent(agentFormData);
         alert('Agent created successfully!');
       }
       
+      // Refresh data
+      await fetchData();
+      
       setShowAgentModal(false);
       setEditingAgent(null);
+      
     } catch (err) {
-      setError(editingAgent ? 'Failed to update agent' : 'Failed to create agent');
       console.error('Error saving agent:', err);
+      setError('Failed to save agent: ' + err.message);
     } finally {
       setSavingAgent(false);
     }
@@ -556,12 +324,17 @@ const AgentManagementDashboard = () => {
 
     try {
       setDeletingAgent(agent._id);
-      await deliveryAgentService.deleteAgent(agent._id);
-      setAgents(prev => prev.filter(a => a._id !== agent._id));
+      
+      await deliveryAgentService.deleteAgent(agent._id || agent.agentId);
+      
+      // Refresh data
+      await fetchData();
+      
       alert('Agent deleted successfully!');
+      
     } catch (err) {
-      setError('Failed to delete agent');
       console.error('Error deleting agent:', err);
+      setError('Failed to delete agent: ' + err.message);
     } finally {
       setDeletingAgent(null);
     }
@@ -569,7 +342,7 @@ const AgentManagementDashboard = () => {
 
   const filteredAgents = agents.filter(agent => {
     const matchesSearch = agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          agent.agentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          agent.agentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           agent.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'All' || agent.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -619,6 +392,13 @@ const AgentManagementDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-900">Agent Management</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={fetchData}
+                className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </button>
               <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => setActiveTab('agents')}
@@ -629,7 +409,7 @@ const AgentManagementDashboard = () => {
                   }`}
                 >
                   <User className="w-4 h-4 inline mr-2" />
-                  Agents
+                  Agents ({agents.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('assignments')}
@@ -640,7 +420,7 @@ const AgentManagementDashboard = () => {
                   }`}
                 >
                   <Package className="w-4 h-4 inline mr-2" />
-                  Order Assignment
+                  Unassigned ({unassignedOrders.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('assigned')}
@@ -651,7 +431,7 @@ const AgentManagementDashboard = () => {
                   }`}
                 >
                   <Users className="w-4 h-4 inline mr-2" />
-                  Assigned Orders
+                  Assigned ({assignedOrders.length})
                 </button>
               </div>
             </div>
@@ -712,7 +492,7 @@ const AgentManagementDashboard = () => {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Assigned Orders</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      {agents.reduce((sum, agent) => sum + agent.assignedOrders, 0)}
+                      {agents.reduce((sum, agent) => sum + (agent.assignedOrders || 0), 0)}
                     </p>
                   </div>
                 </div>
@@ -726,7 +506,7 @@ const AgentManagementDashboard = () => {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Avg Rating</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      {agents.length > 0 ? (agents.reduce((sum, agent) => sum + agent.rating, 0) / agents.length).toFixed(1) : '0.0'}
+                      {agents.length > 0 ? (agents.reduce((sum, agent) => sum + (agent.rating || 0), 0) / agents.length).toFixed(1) : '0.0'}
                     </p>
                   </div>
                 </div>
@@ -774,7 +554,7 @@ const AgentManagementDashboard = () => {
             {/* Agents Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredAgents.map(agent => (
-                <div key={agent._id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6">
+                <div key={agent._id || agent.agentId} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center">
                       <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
@@ -782,7 +562,7 @@ const AgentManagementDashboard = () => {
                       </div>
                       <div className="ml-3">
                         <h3 className="text-lg font-semibold text-gray-900">{agent.name}</h3>
-                        <p className="text-sm text-gray-500">ID: {agent.agentId}</p>
+                        <p className="text-sm text-gray-500">ID: {agent.agentId || 'N/A'}</p>
                       </div>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(agent.status)}`}>
@@ -808,15 +588,15 @@ const AgentManagementDashboard = () => {
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Assigned Orders:</span>
-                      <span className="font-semibold text-blue-600">{agent.assignedOrders}</span>
+                      <span className="font-semibold text-blue-600">{agent.assignedOrders || 0}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-gray-600">Completed:</span>
-                      <span className="font-semibold text-green-600">{agent.completedDeliveries}</span>
+                      <span className="font-semibold text-green-600">{agent.completedDeliveries || 0}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-gray-600">Rating:</span>
-                      <span className="font-semibold text-yellow-600">⭐ {agent.rating}</span>
+                      <span className="font-semibold text-yellow-600">⭐ {agent.rating || 0}</span>
                     </div>
                   </div>
 
@@ -895,7 +675,7 @@ const AgentManagementDashboard = () => {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Value</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      ${unassignedOrders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
+                      ${unassignedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -919,15 +699,15 @@ const AgentManagementDashboard = () => {
                 ) : (
                   <div className="space-y-4">
                     {unassignedOrders.map(order => (
-                      <div key={order._id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                      <div key={order._id || order.orderId} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center mb-2">
                               <h4 className="text-lg font-semibold text-gray-900">
-                                Order #{order._id.slice(-6)}
+                                Order #{order.orderId}
                               </h4>
                               <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-800 text-xs font-medium rounded-full">
-                                {order.status}
+                                {order.status || 'Pending'}
                               </span>
                             </div>
                             
@@ -940,7 +720,7 @@ const AgentManagementDashboard = () => {
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600 mb-1">Order Details</p>
-                                <p className="font-medium text-gray-900">Total: ${order.totalAmount}</p>
+                                <p className="font-medium text-gray-900">Total: ${order.totalAmount || 0}</p>
                                 <p className="text-sm text-gray-600">
                                   Items: {order.orderItems?.length || 0}
                                 </p>
@@ -971,10 +751,10 @@ const AgentManagementDashboard = () => {
                                 setSelectedOrder(order);
                                 setShowAssignModal(true);
                               }}
-                              disabled={assigningOrder === order._id}
+                              disabled={assigningOrder === order._id || assigningOrder === order.orderId}
                               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                             >
-                              {assigningOrder === order._id ? 'Assigning...' : 'Assign Agent'}
+                              {assigningOrder === (order._id || order.orderId) ? 'Assigning...' : 'Assign Agent'}
                             </button>
                           </div>
                         </div>
@@ -1039,7 +819,7 @@ const AgentManagementDashboard = () => {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Value</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      ${assignedOrders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
+                      ${assignedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -1053,13 +833,6 @@ const AgentManagementDashboard = () => {
                   <h2 className="text-xl font-semibold text-gray-900">Assigned Orders</h2>
                   <p className="text-gray-600 mt-1">Manage currently assigned delivery orders</p>
                 </div>
-                <button
-                  onClick={fetchData}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </button>
               </div>
               
               <div className="p-6">
@@ -1072,7 +845,7 @@ const AgentManagementDashboard = () => {
                 ) : (
                   <div className="space-y-4">
                     {assignedOrders.map(assignment => (
-                      <div key={assignment._id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                      <div key={assignment._id || assignment.orderId} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center mb-3">
@@ -1106,7 +879,7 @@ const AgentManagementDashboard = () => {
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600 mb-1">Order Info</p>
-                                <p className="font-medium text-gray-900">Total: ${assignment.totalAmount}</p>
+                                <p className="font-medium text-gray-900">Total: ${assignment.totalAmount || 0}</p>
                                 <p className="text-sm text-gray-600">
                                   Items: {assignment.orderItems?.length || 0}
                                 </p>
@@ -1148,10 +921,10 @@ const AgentManagementDashboard = () => {
                             </button>
                             <button
                               onClick={() => handleDeleteAssignment(assignment)}
-                              disabled={deletingAssignment === assignment._id}
+                              disabled={deletingAssignment === assignment.orderId}
                               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center"
                             >
-                              {deletingAssignment === assignment._id ? (
+                              {deletingAssignment === assignment.orderId ? (
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
                               ) : (
                                 <Trash2 className="w-4 h-4 mr-1" />
@@ -1335,7 +1108,7 @@ const AgentManagementDashboard = () => {
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600">Customer: {editingAssignment.customerName}</p>
               <p className="text-sm text-gray-600">Address: {editingAssignment.customerAddress}</p>
-              <p className="text-sm text-gray-600">Total: ${editingAssignment.totalAmount}</p>
+              <p className="text-sm text-gray-600">Total: ${editingAssignment.totalAmount || 0}</p>
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); handleSaveAssignment(); }} className="space-y-4">
@@ -1344,8 +1117,8 @@ const AgentManagementDashboard = () => {
                   Assign to Agent *
                 </label>
                 <select
-                  value={assignmentFormData.assignedAgent}
-                  onChange={(e) => setAssignmentFormData(prev => ({ ...prev, assignedAgent: e.target.value }))}
+                  value={assignmentFormData.deliveryAgentId}
+                  onChange={(e) => setAssignmentFormData(prev => ({ ...prev, deliveryAgentId: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
@@ -1443,13 +1216,13 @@ const AgentManagementDashboard = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              Assign Order #{selectedOrder._id.slice(-6)}
+              Assign Order #{selectedOrder.orderId}
             </h3>
             
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600">Customer: {selectedOrder.customerName}</p>
               <p className="text-sm text-gray-600">Location: {selectedOrder.customerAddress}</p>
-              <p className="text-sm text-gray-600">Amount: ${selectedOrder.totalAmount}</p>
+              <p className="text-sm text-gray-600">Amount: ${selectedOrder.totalAmount || 0}</p>
             </div>
 
             <div className="mb-6">
@@ -1460,8 +1233,8 @@ const AgentManagementDashboard = () => {
                 {agents.filter(agent => agent.status === 'Active').map(agent => (
                   <button
                     key={agent.agentId}
-                    onClick={() => handleAssignOrder(selectedOrder._id, agent.agentId)}
-                    disabled={assigningOrder === selectedOrder._id}
+                    onClick={() => handleAssignOrder(selectedOrder.orderId, agent.agentId)}
+                    disabled={assigningOrder === (selectedOrder._id || selectedOrder.orderId)}
                     className="w-full text-left p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50"
                   >
                     <div className="flex items-center justify-between">
@@ -1469,7 +1242,7 @@ const AgentManagementDashboard = () => {
                         <p className="font-medium text-gray-900">{agent.name}</p>
                         <p className="text-sm text-gray-600">{agent.location}</p>
                         <p className="text-sm text-gray-500">
-                          Current orders: {agent.assignedOrders} | Rating: ⭐ {agent.rating}
+                          Current orders: {agent.assignedOrders || 0} | Rating: ⭐ {agent.rating || 0}
                         </p>
                       </div>
                       <div className="text-right">
@@ -1521,7 +1294,7 @@ const AgentManagementDashboard = () => {
                 </div>
                 <div className="ml-4">
                   <h4 className="text-2xl font-bold text-gray-900">{selectedAgent.name}</h4>
-                  <p className="text-lg text-gray-600">Agent ID: {selectedAgent.agentId}</p>
+                  <p className="text-lg text-gray-600">Agent ID: {selectedAgent.agentId || 'N/A'}</p>
                   <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedAgent.status)}`}>
                     {selectedAgent.status}
                   </span>
@@ -1550,24 +1323,15 @@ const AgentManagementDashboard = () => {
                   <div className="space-y-3">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Current Orders:</span>
-                      <span className="font-semibold text-blue-600">{selectedAgent.assignedOrders}</span>
+                      <span className="font-semibold text-blue-600">{selectedAgent.assignedOrders || 0}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Completed:</span>
-                      <span className="font-semibold text-green-600">{selectedAgent.completedDeliveries}</span>
+                      <span className="font-semibold text-green-600">{selectedAgent.completedDeliveries || 0}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Average Rating:</span>
-                      <span className="font-semibold text-yellow-600">⭐ {selectedAgent.rating}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Success Rate:</span>
-                      <span className="font-semibold text-purple-600">
-                        {selectedAgent.completedDeliveries > 0 
-                          ? ((selectedAgent.completedDeliveries / (selectedAgent.completedDeliveries + 5)) * 100).toFixed(1)
-                          : '0.0'
-                        }%
-                      </span>
+                      <span className="font-semibold text-yellow-600">⭐ {selectedAgent.rating || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -1582,7 +1346,7 @@ const AgentManagementDashboard = () => {
                   </div>
                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                     <span className="text-gray-600">Last Active:</span>
-                    <span className="font-medium text-gray-900">{formatDate(selectedAgent.lastActive)}</span>
+                    <span className="font-medium text-gray-900">{formatDate(selectedAgent.lastActive || selectedAgent.updatedAt)}</span>
                   </div>
                 </div>
               </div>
@@ -1597,10 +1361,6 @@ const AgentManagementDashboard = () => {
                 >
                   <Edit className="w-4 h-4 inline mr-2" />
                   Edit Agent
-                </button>
-                <button className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium">
-                  <Phone className="w-4 h-4 inline mr-2" />
-                  Contact Agent
                 </button>
                 <button 
                   onClick={() => setSelectedAgent(null)}
