@@ -1,7 +1,7 @@
-// controllers/DeliveryAgentController.js - Fixed version with correct imports
+// controllers/DeliveryAgentController.js - Complete version with all exports
 
-import DeliveryAgent from '../models/DeliveryAgentModel.js'; // Changed to lowercase
-import Order from '../models/order.js'; // Changed to lowercase to match your existing files
+import DeliveryAgent from '../models/DeliveryAgentModel.js';
+import Order from '../models/order.js';
 
 // Create a new delivery agent
 export const createDeliveryAgent = async (req, res) => {
@@ -322,6 +322,131 @@ export const deleteDeliveryAgent = async (req, res) => {
   }
 };
 
+// Get agent statistics
+export const getAgentStatistics = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    let agent = await DeliveryAgent.findById(agentId);
+    if (!agent) {
+      agent = await DeliveryAgent.findOne({ agentId });
+    }
+    
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // Get detailed statistics
+    let totalOrders = 0;
+    let completedOrders = 0;
+    let pendingOrders = 0;
+    let cancelledOrders = 0;
+
+    try {
+      [totalOrders, completedOrders, pendingOrders, cancelledOrders] = await Promise.all([
+        Order.countDocuments({
+          $or: [
+            { deliveryAgentId: agent.agentId },
+            { assignedAgent: agent._id }
+          ]
+        }),
+        Order.countDocuments({
+          $or: [
+            { deliveryAgentId: agent.agentId },
+            { assignedAgent: agent._id }
+          ],
+          status: 'Delivered'
+        }),
+        Order.countDocuments({
+          $or: [
+            { deliveryAgentId: agent.agentId },
+            { assignedAgent: agent._id }
+          ],
+          status: { $in: ['Assigned', 'Picked Up', 'In Transit'] }
+        }),
+        Order.countDocuments({
+          $or: [
+            { deliveryAgentId: agent.agentId },
+            { assignedAgent: agent._id }
+          ],
+          status: 'Failed'
+        })
+      ]);
+    } catch (orderError) {
+      console.log('Could not fetch order statistics (Order model may not exist):', orderError.message);
+    }
+
+    const stats = {
+      totalOrders,
+      completedOrders,
+      pendingOrders,
+      cancelledOrders,
+      successRate: totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(2) : 0,
+      rating: agent.rating || 0
+    };
+
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error fetching agent statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch agent statistics',
+      error: error.message
+    });
+  }
+};
+
+// Get unassigned orders
+export const getUnassignedOrders = async (req, res) => {
+  try {
+    let unassignedOrders = [];
+    
+    try {
+      unassignedOrders = await Order.find({
+        $and: [
+          { status: { $in: ['Pending', 'Confirmed'] } },
+          {
+            $or: [
+              { deliveryAgentId: { $exists: false } },
+              { deliveryAgentId: null },
+              { assignedAgent: { $exists: false } },
+              { assignedAgent: null }
+            ]
+          }
+        ]
+      })
+      .populate('customer', 'name email phone')
+      .sort({ createdAt: -1 })
+      .limit(50);
+    } catch (orderError) {
+      console.log('Could not fetch unassigned orders (Order model may not exist):', orderError.message);
+      // Return empty array if Order model doesn't exist
+      unassignedOrders = [];
+    }
+
+    console.log(`Found ${unassignedOrders.length} unassigned orders`);
+
+    res.status(200).json({
+      success: true,
+      count: unassignedOrders.length,
+      data: unassignedOrders
+    });
+  } catch (error) {
+    console.error('Error fetching unassigned orders:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch unassigned orders',
+      error: error.message
+    });
+  }
+};
+
 // Assign order to agent
 export const assignOrderToAgent = async (req, res) => {
   try {
@@ -347,48 +472,57 @@ export const assignOrderToAgent = async (req, res) => {
       });
     }
 
-    // Find and update the order
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    if (order.deliveryAgentId || order.assignedAgent) {
-      return res.status(400).json({
-        success: false,
-        message: 'Order is already assigned to a delivery agent'
-      });
-    }
-
-    // Update the order
-    order.deliveryAgentId = agent.agentId;
-    order.assignedAgent = agent._id;
-    order.status = 'Assigned';
-    order.assignedAt = new Date();
-    await order.save();
-
-    // Update agent's assigned orders count
-    agent.assignedOrders += 1;
-    agent.lastActive = new Date();
-    await agent.save();
-
-    console.log(`Order ${orderId} assigned to agent ${agent.agentId}`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Order assigned to delivery agent successfully',
-      data: {
-        order,
-        agent: {
-          agentId: agent.agentId,
-          name: agent.name,
-          location: agent.location
-        }
+    try {
+      // Find and update the order
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
       }
-    });
+
+      if (order.deliveryAgentId || order.assignedAgent) {
+        return res.status(400).json({
+          success: false,
+          message: 'Order is already assigned to a delivery agent'
+        });
+      }
+
+      // Update the order
+      order.deliveryAgentId = agent.agentId;
+      order.assignedAgent = agent._id;
+      order.status = 'Assigned';
+      order.assignedAt = new Date();
+      await order.save();
+
+      // Update agent's assigned orders count
+      agent.assignedOrders += 1;
+      agent.lastActive = new Date();
+      await agent.save();
+
+      console.log(`Order ${orderId} assigned to agent ${agent.agentId}`);
+
+      res.status(200).json({
+        success: true,
+        message: 'Order assigned to delivery agent successfully',
+        data: {
+          order,
+          agent: {
+            agentId: agent.agentId,
+            name: agent.name,
+            location: agent.location
+          }
+        }
+      });
+    } catch (orderError) {
+      console.log('Could not assign order (Order model may not exist):', orderError.message);
+      res.status(500).json({
+        success: false,
+        message: 'Could not assign order - Order management not available',
+        error: orderError.message
+      });
+    }
   } catch (error) {
     console.error('Error assigning order to agent:', error);
     res.status(500).json({
