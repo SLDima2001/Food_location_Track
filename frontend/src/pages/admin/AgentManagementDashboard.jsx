@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, Phone, Mail, Clock, Package, CheckCircle, AlertCircle, Plus, Edit, Trash2, Eye, Search, Filter, Save, X } from 'lucide-react';
+import { User, MapPin, Phone, Mail, Clock, Package, CheckCircle, AlertCircle, Plus, Edit, Trash2, Eye, Search, Filter, Save, X, RefreshCw, Users } from 'lucide-react';
 
 // Enhanced API service for delivery agents with full CRUD operations
 const deliveryAgentService = {
@@ -157,6 +157,58 @@ const deliveryAgentService = {
     };
   },
 
+  async getAssignedOrders() {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Get assigned orders from localStorage or return mock data
+    const assignedOrders = JSON.parse(localStorage.getItem('assignedOrders') || '[]');
+    
+    if (assignedOrders.length === 0) {
+      const defaultAssigned = [
+        {
+          _id: 'assign1',
+          orderId: '88g5c3d4e5f6g7h8i9j0k3',
+          customerName: 'Emma Wilson',
+          customerAddress: '789 Pine St, West Side',
+          customerPhone: '+1234567895',
+          totalAmount: 92.75,
+          status: 'Assigned',
+          assignedAgent: 'DA001',
+          agentName: 'John Smith',
+          assignedAt: '2024-09-24T08:00:00Z',
+          createdAt: '2024-09-24T07:30:00Z',
+          orderItems: [
+            { name: 'Organic Apples', quantity: 3, price: 24.00 },
+            { name: 'Fresh Bread', quantity: 2, price: 18.75 },
+            { name: 'Milk', quantity: 1, price: 50.00 }
+          ]
+        },
+        {
+          _id: 'assign2',
+          orderId: '99h6d4e5f6g7h8i9j0k4',
+          customerName: 'Michael Chen',
+          customerAddress: '321 Elm Ave, East District',
+          customerPhone: '+1234567896',
+          totalAmount: 156.30,
+          status: 'In Progress',
+          assignedAgent: 'DA002',
+          agentName: 'Sarah Johnson',
+          assignedAt: '2024-09-24T09:15:00Z',
+          createdAt: '2024-09-24T08:45:00Z',
+          orderItems: [
+            { name: 'Premium Steak', quantity: 2, price: 85.00 },
+            { name: 'Organic Vegetables', quantity: 1, price: 45.30 },
+            { name: 'Wine', quantity: 1, price: 26.00 }
+          ]
+        }
+      ];
+      localStorage.setItem('assignedOrders', JSON.stringify(defaultAssigned));
+      return { success: true, data: defaultAssigned };
+    }
+    
+    return { success: true, data: assignedOrders };
+  },
+
   async assignOrderToAgent(orderId, agentId) {
     await new Promise(resolve => setTimeout(resolve, 1500));
     
@@ -170,6 +222,66 @@ const deliveryAgentService = {
     }
     
     return { success: true, message: 'Order assigned successfully' };
+  },
+
+  async updateAssignedOrder(assignmentId, updateData) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const assignedOrders = JSON.parse(localStorage.getItem('assignedOrders') || '[]');
+    const assignmentIndex = assignedOrders.findIndex(a => a._id === assignmentId);
+    
+    if (assignmentIndex === -1) {
+      throw new Error('Assignment not found');
+    }
+    
+    // If reassigning to a different agent, update agent counts
+    if (updateData.assignedAgent && updateData.assignedAgent !== assignedOrders[assignmentIndex].assignedAgent) {
+      const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
+      
+      // Decrease old agent's count
+      const oldAgentIndex = agents.findIndex(a => a.agentId === assignedOrders[assignmentIndex].assignedAgent);
+      if (oldAgentIndex !== -1) {
+        agents[oldAgentIndex].assignedOrders = Math.max(0, agents[oldAgentIndex].assignedOrders - 1);
+      }
+      
+      // Increase new agent's count
+      const newAgentIndex = agents.findIndex(a => a.agentId === updateData.assignedAgent);
+      if (newAgentIndex !== -1) {
+        agents[newAgentIndex].assignedOrders += 1;
+        updateData.agentName = agents[newAgentIndex].name;
+      }
+      
+      localStorage.setItem('deliveryAgents', JSON.stringify(agents));
+    }
+    
+    assignedOrders[assignmentIndex] = { ...assignedOrders[assignmentIndex], ...updateData };
+    localStorage.setItem('assignedOrders', JSON.stringify(assignedOrders));
+    
+    return { success: true, data: assignedOrders[assignmentIndex], message: 'Assignment updated successfully' };
+  },
+
+  async deleteAssignment(assignmentId) {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    const assignedOrders = JSON.parse(localStorage.getItem('assignedOrders') || '[]');
+    const assignment = assignedOrders.find(a => a._id === assignmentId);
+    
+    if (!assignment) {
+      throw new Error('Assignment not found');
+    }
+    
+    // Decrease agent's assigned orders count
+    const agents = JSON.parse(localStorage.getItem('deliveryAgents') || '[]');
+    const agentIndex = agents.findIndex(a => a.agentId === assignment.assignedAgent);
+    if (agentIndex !== -1) {
+      agents[agentIndex].assignedOrders = Math.max(0, agents[agentIndex].assignedOrders - 1);
+      localStorage.setItem('deliveryAgents', JSON.stringify(agents));
+    }
+    
+    const filteredAssignments = assignedOrders.filter(a => a._id !== assignmentId);
+    localStorage.setItem('assignedOrders', JSON.stringify(filteredAssignments));
+    
+    return { success: true, message: 'Assignment deleted successfully' };
   }
 };
 
@@ -177,6 +289,7 @@ const AgentManagementDashboard = () => {
   const [activeTab, setActiveTab] = useState('agents');
   const [agents, setAgents] = useState([]);
   const [unassignedOrders, setUnassignedOrders] = useState([]);
+  const [assignedOrders, setAssignedOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState(null);
@@ -186,7 +299,19 @@ const AgentManagementDashboard = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
-  // New states for CRUD operations
+  // New states for assigned orders management
+  const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [assignmentFormData, setAssignmentFormData] = useState({
+    assignedAgent: '',
+    status: 'Assigned',
+    priority: 'Normal',
+    notes: ''
+  });
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const [deletingAssignment, setDeletingAssignment] = useState(null);
+  
+  // Existing states for agent CRUD operations
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
   const [agentFormData, setAgentFormData] = useState({
@@ -207,13 +332,15 @@ const AgentManagementDashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [agentsResponse, ordersResponse] = await Promise.all([
+      const [agentsResponse, unassignedResponse, assignedResponse] = await Promise.all([
         deliveryAgentService.getAllAgents(),
-        deliveryAgentService.getUnassignedOrders()
+        deliveryAgentService.getUnassignedOrders(),
+        deliveryAgentService.getAssignedOrders()
       ]);
       
       setAgents(agentsResponse.data || []);
-      setUnassignedOrders(ordersResponse.data || []);
+      setUnassignedOrders(unassignedResponse.data || []);
+      setAssignedOrders(assignedResponse.data || []);
       setError(null);
     } catch (err) {
       setError('Failed to fetch data');
@@ -236,6 +363,10 @@ const AgentManagementDashboard = () => {
           : agent
       ));
       
+      // Refresh assigned orders
+      const assignedResponse = await deliveryAgentService.getAssignedOrders();
+      setAssignedOrders(assignedResponse.data || []);
+      
       setShowAssignModal(false);
       setSelectedOrder(null);
       alert('Order assigned successfully!');
@@ -247,7 +378,84 @@ const AgentManagementDashboard = () => {
     }
   };
 
-  // Agent CRUD operations
+  // Assignment management functions
+  const openEditAssignmentModal = (assignment) => {
+    setEditingAssignment(assignment);
+    setAssignmentFormData({
+      assignedAgent: assignment.assignedAgent || '',
+      status: assignment.status || 'Assigned',
+      priority: assignment.priority || 'Normal',
+      notes: assignment.notes || ''
+    });
+    setShowEditAssignmentModal(true);
+  };
+
+  const handleSaveAssignment = async () => {
+    try {
+      setSavingAssignment(true);
+      
+      const response = await deliveryAgentService.updateAssignedOrder(
+        editingAssignment._id, 
+        assignmentFormData
+      );
+      
+      setAssignedOrders(prev => prev.map(assignment => 
+        assignment._id === editingAssignment._id ? response.data : assignment
+      ));
+      
+      // Refresh agents data to update counts
+      const agentsResponse = await deliveryAgentService.getAllAgents();
+      setAgents(agentsResponse.data || []);
+      
+      setShowEditAssignmentModal(false);
+      setEditingAssignment(null);
+      alert('Assignment updated successfully!');
+    } catch (err) {
+      setError('Failed to update assignment');
+      console.error('Error updating assignment:', err);
+    } finally {
+      setSavingAssignment(false);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignment) => {
+    if (!window.confirm(`Are you sure you want to delete assignment for order ${assignment.orderId}? This will make the order unassigned again.`)) {
+      return;
+    }
+
+    try {
+      setDeletingAssignment(assignment._id);
+      await deliveryAgentService.deleteAssignment(assignment._id);
+      
+      setAssignedOrders(prev => prev.filter(a => a._id !== assignment._id));
+      
+      // Add order back to unassigned orders
+      const orderData = {
+        _id: assignment.orderId,
+        customerName: assignment.customerName,
+        customerAddress: assignment.customerAddress,
+        customerPhone: assignment.customerPhone,
+        totalAmount: assignment.totalAmount,
+        status: 'Pending',
+        createdAt: assignment.createdAt,
+        orderItems: assignment.orderItems || []
+      };
+      setUnassignedOrders(prev => [...prev, orderData]);
+      
+      // Refresh agents data to update counts
+      const agentsResponse = await deliveryAgentService.getAllAgents();
+      setAgents(agentsResponse.data || []);
+      
+      alert('Assignment deleted successfully!');
+    } catch (err) {
+      setError('Failed to delete assignment');
+      console.error('Error deleting assignment:', err);
+    } finally {
+      setDeletingAssignment(null);
+    }
+  };
+
+  // Agent CRUD operations (existing code)
   const validateAgentForm = () => {
     const errors = {};
     
@@ -361,8 +569,8 @@ const AgentManagementDashboard = () => {
 
   const filteredAgents = agents.filter(agent => {
     const matchesSearch = agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         agent.agentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         agent.location.toLowerCase().includes(searchTerm.toLowerCase());
+                          agent.agentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          agent.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'All' || agent.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -382,6 +590,9 @@ const AgentManagementDashboard = () => {
       case 'Active': return 'bg-green-100 text-green-800';
       case 'Inactive': return 'bg-gray-100 text-gray-800';
       case 'Busy': return 'bg-yellow-100 text-yellow-800';
+      case 'Assigned': return 'bg-blue-100 text-blue-800';
+      case 'In Progress': return 'bg-purple-100 text-purple-800';
+      case 'Completed': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -430,6 +641,17 @@ const AgentManagementDashboard = () => {
                 >
                   <Package className="w-4 h-4 inline mr-2" />
                   Order Assignment
+                </button>
+                <button
+                  onClick={() => setActiveTab('assigned')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === 'assigned'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Users className="w-4 h-4 inline mr-2" />
+                  Assigned Orders
                 </button>
               </div>
             </div>
@@ -764,6 +986,188 @@ const AgentManagementDashboard = () => {
             </div>
           </div>
         )}
+
+        {activeTab === 'assigned' && (
+          <div>
+            {/* Assigned Orders Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-blue-100">
+                    <Package className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Assigned</p>
+                    <p className="text-2xl font-semibold text-gray-900">{assignedOrders.length}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-yellow-100">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">In Progress</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {assignedOrders.filter(order => order.status === 'In Progress').length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-green-100">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Completed</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {assignedOrders.filter(order => order.status === 'Completed').length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-purple-100">
+                    <RefreshCw className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Value</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      ${assignedOrders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Assigned Orders List */}
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Assigned Orders</h2>
+                  <p className="text-gray-600 mt-1">Manage currently assigned delivery orders</p>
+                </div>
+                <button
+                  onClick={fetchData}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {assignedOrders.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No assigned orders</h3>
+                    <p className="text-gray-500">Orders will appear here once they are assigned to agents.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {assignedOrders.map(assignment => (
+                      <div key={assignment._id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center mb-3">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                Order #{assignment.orderId}
+                              </h4>
+                              <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(assignment.status)}`}>
+                                {assignment.status}
+                              </span>
+                              {assignment.priority && assignment.priority !== 'Normal' && (
+                                <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                                  {assignment.priority} Priority
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                              <div>
+                                <p className="text-sm text-gray-600 mb-1">Customer Details</p>
+                                <p className="font-medium text-gray-900">{assignment.customerName}</p>
+                                <p className="text-sm text-gray-600">{assignment.customerAddress}</p>
+                                <p className="text-sm text-gray-600">{assignment.customerPhone}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600 mb-1">Assignment Details</p>
+                                <p className="font-medium text-gray-900">Agent: {assignment.agentName}</p>
+                                <p className="text-sm text-gray-600">ID: {assignment.assignedAgent}</p>
+                                <p className="text-sm text-gray-600">
+                                  Assigned: {formatDate(assignment.assignedAt)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600 mb-1">Order Info</p>
+                                <p className="font-medium text-gray-900">Total: ${assignment.totalAmount}</p>
+                                <p className="text-sm text-gray-600">
+                                  Items: {assignment.orderItems?.length || 0}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Created: {formatDate(assignment.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {assignment.orderItems && assignment.orderItems.length > 0 && (
+                              <div className="mb-4">
+                                <p className="text-sm text-gray-600 mb-2">Items:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {assignment.orderItems.map((item, index) => (
+                                    <span key={index} className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
+                                      {item.name} x{item.quantity}
+                                      {item.price && ` - ${item.price}`}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {assignment.notes && (
+                              <div className="mb-4">
+                                <p className="text-sm text-gray-600 mb-1">Notes:</p>
+                                <p className="text-sm text-gray-800 bg-gray-50 p-2 rounded">{assignment.notes}</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="ml-4 flex flex-col gap-2">
+                            <button
+                              onClick={() => openEditAssignmentModal(assignment)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center"
+                            >
+                              <Edit className="w-4 h-4 mr-1" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAssignment(assignment)}
+                              disabled={deletingAssignment === assignment._id}
+                              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center"
+                            >
+                              {deletingAssignment === assignment._id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                              ) : (
+                                <Trash2 className="w-4 h-4 mr-1" />
+                              )}
+                              Unassign
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Agent Create/Edit Modal */}
@@ -900,6 +1304,131 @@ const AgentManagementDashboard = () => {
                     <>
                       <Save className="w-4 h-4 mr-2" />
                       {editingAgent ? 'Update Agent' : 'Create Agent'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assignment Edit Modal */}
+      {showEditAssignmentModal && editingAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">
+                Edit Assignment - Order #{editingAssignment.orderId}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditAssignmentModal(false);
+                  setEditingAssignment(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">Customer: {editingAssignment.customerName}</p>
+              <p className="text-sm text-gray-600">Address: {editingAssignment.customerAddress}</p>
+              <p className="text-sm text-gray-600">Total: ${editingAssignment.totalAmount}</p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveAssignment(); }} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Assign to Agent *
+                </label>
+                <select
+                  value={assignmentFormData.assignedAgent}
+                  onChange={(e) => setAssignmentFormData(prev => ({ ...prev, assignedAgent: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select an agent</option>
+                  {agents.filter(agent => agent.status === 'Active').map(agent => (
+                    <option key={agent.agentId} value={agent.agentId}>
+                      {agent.name} ({agent.agentId}) - {agent.location}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={assignmentFormData.status}
+                  onChange={(e) => setAssignmentFormData(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Assigned">Assigned</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Failed">Failed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Priority
+                </label>
+                <select
+                  value={assignmentFormData.priority}
+                  onChange={(e) => setAssignmentFormData(prev => ({ ...prev, priority: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Low">Low</option>
+                  <option value="Normal">Normal</option>
+                  <option value="High">High</option>
+                  <option value="Urgent">Urgent</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={assignmentFormData.notes}
+                  onChange={(e) => setAssignmentFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Add any special instructions or notes..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditAssignmentModal(false);
+                    setEditingAssignment(null);
+                  }}
+                  className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAssignment}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center"
+                >
+                  {savingAssignment ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Update Assignment
                     </>
                   )}
                 </button>
