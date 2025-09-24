@@ -357,3 +357,298 @@ export async function updateOrderItemStatus(req, res) {
     });
   }
 }
+// Additional controller methods for your existing OrderController.js
+
+// Add these methods to your existing OrderController.js file
+
+export const getUnassignedOrders = async (req, res) => {
+  console.log('=== GET UNASSIGNED ORDERS REQUEST ===');
+  
+  try {
+    // Import your Order model here
+    // import Order from '../models/OrderModel.js';
+    
+    // Query orders that don't have a delivery agent assigned
+    // This assumes your Order model has fields like 'deliveryAgentId' or 'assignedAgent'
+    const unassignedOrders = await Order.find({
+      $and: [
+        { status: { $in: ['Pending', 'Confirmed'] } }, // Only pending/confirmed orders
+        { 
+          $or: [
+            { deliveryAgentId: { $exists: false } },
+            { deliveryAgentId: null },
+            { assignedAgent: { $exists: false } },
+            { assignedAgent: null }
+          ]
+        }
+      ]
+    })
+    .populate('customer', 'name email phone') // If you have customer reference
+    .sort({ createdAt: -1 });
+
+    console.log(`Found ${unassignedOrders.length} unassigned orders`);
+    
+    res.status(200).json({
+      success: true,
+      count: unassignedOrders.length,
+      orders: unassignedOrders
+    });
+  } catch (error) {
+    console.error('Error fetching unassigned orders:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch unassigned orders.',
+      error: error.message
+    });
+  }
+};
+
+export const assignOrderToDeliveryAgent = async (req, res) => {
+  console.log('=== ASSIGN ORDER TO DELIVERY AGENT ===');
+  console.log('Request body:', req.body);
+  
+  const { orderId, deliveryAgentId } = req.body;
+
+  if (!orderId || !deliveryAgentId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Order ID and Delivery Agent ID are required.',
+      required: ['orderId', 'deliveryAgentId']
+    });
+  }
+
+  try {
+    // Import your models
+    // import Order from '../models/OrderModel.js';
+    // import DeliveryAgent from '../models/DeliveryAgentModel.js';
+    
+    // Verify the delivery agent exists and is active
+    const agent = await DeliveryAgent.findOne({ agentId: deliveryAgentId, status: 'Active' });
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Active delivery agent not found.'
+      });
+    }
+
+    // Find and update the order
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found.'
+      });
+    }
+
+    // Check if order is already assigned
+    if (order.deliveryAgentId || order.assignedAgent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already assigned to a delivery agent.'
+      });
+    }
+
+    // Update the order with delivery agent assignment
+    order.deliveryAgentId = deliveryAgentId;
+    order.assignedAgent = agent._id; // If you have agent reference
+    order.status = 'Assigned';
+    order.assignedAt = new Date();
+    
+    await order.save();
+
+    console.log('Order assigned successfully:', {
+      orderId: order._id,
+      agentId: deliveryAgentId,
+      agentName: agent.name
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Order assigned to delivery agent successfully.',
+      data: {
+        order: order,
+        agent: {
+          agentId: agent.agentId,
+          name: agent.name,
+          location: agent.location
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error assigning order to delivery agent:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to assign order to delivery agent.',
+      error: error.message
+    });
+  }
+};
+
+export const getOrderAssignments = async (req, res) => {
+  console.log('=== GET ORDER ASSIGNMENTS ===');
+  
+  try {
+    // Get all orders that have been assigned to delivery agents
+    const assignedOrders = await Order.find({
+      $and: [
+        {
+          $or: [
+            { deliveryAgentId: { $exists: true, $ne: null } },
+            { assignedAgent: { $exists: true, $ne: null } }
+          ]
+        }
+      ]
+    })
+    .populate('assignedAgent', 'name email phoneNumber location') // If using reference
+    .sort({ assignedAt: -1 });
+
+    console.log(`Found ${assignedOrders.length} assigned orders`);
+    
+    res.status(200).json({
+      success: true,
+      count: assignedOrders.length,
+      data: assignedOrders
+    });
+  } catch (error) {
+    console.error('Error fetching order assignments:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch order assignments.',
+      error: error.message
+    });
+  }
+};
+
+export const updateOrderAssignmentStatus = async (req, res) => {
+  console.log('=== UPDATE ORDER ASSIGNMENT STATUS ===');
+  console.log('Request body:', req.body);
+  
+  const { orderId, status, location, notes } = req.body;
+
+  if (!orderId || !status) {
+    return res.status(400).json({
+      success: false,
+      message: 'Order ID and status are required.',
+      required: ['orderId', 'status']
+    });
+  }
+
+  const validStatuses = ['Assigned', 'Picked Up', 'In Transit', 'Delivered', 'Failed'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid status.',
+      validStatuses: validStatuses
+    });
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found.'
+      });
+    }
+
+    // Update order status and tracking info
+    order.status = status;
+    order.updatedAt = new Date();
+    
+    if (location) {
+      order.currentLocation = location;
+    }
+    
+    if (notes) {
+      if (!order.deliveryNotes) order.deliveryNotes = [];
+      order.deliveryNotes.push({
+        note: notes,
+        timestamp: new Date(),
+        status: status
+      });
+    }
+
+    // Set completion time if delivered
+    if (status === 'Delivered') {
+      order.deliveredAt = new Date();
+    }
+    
+    await order.save();
+
+    console.log('Order assignment status updated:', {
+      orderId: order._id,
+      newStatus: status
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Order assignment status updated successfully.',
+      data: order
+    });
+  } catch (error) {
+    console.error('Error updating order assignment status:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update order assignment status.',
+      error: error.message
+    });
+  }
+};
+
+export const unassignOrderFromAgent = async (req, res) => {
+  console.log('=== UNASSIGN ORDER FROM AGENT ===');
+  
+  const { orderId } = req.params;
+  const { reason } = req.body;
+
+  if (!orderId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Order ID is required.'
+    });
+  }
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found.'
+      });
+    }
+
+    if (!order.deliveryAgentId && !order.assignedAgent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is not currently assigned to any agent.'
+      });
+    }
+
+    // Remove agent assignment
+    order.deliveryAgentId = null;
+    order.assignedAgent = null;
+    order.status = 'Pending';
+    order.unassignedAt = new Date();
+    order.unassignReason = reason || 'Manual unassignment';
+    
+    await order.save();
+
+    console.log('Order unassigned from agent:', {
+      orderId: order._id,
+      reason: reason
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Order unassigned from delivery agent successfully.',
+      data: order
+    });
+  } catch (error) {
+    console.error('Error unassigning order from agent:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to unassign order from agent.',
+      error: error.message
+    });
+  }
+};

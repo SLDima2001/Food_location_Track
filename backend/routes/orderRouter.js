@@ -1,5 +1,9 @@
 import express from 'express';
-import { newOrder, newOrderFromCart, listOrder, updateOrder, cancelOrder, getRevenueStats, getFarmerOrders, updateOrderItemStatus } from '../controllers/orderController.js';  // Import order controller methods
+import { newOrder, newOrderFromCart, listOrder, updateOrder, cancelOrder, getRevenueStats, getFarmerOrders, updateOrderItemStatus,getUnassignedOrders,
+  assignOrderToDeliveryAgent,
+  getOrderAssignments,
+  updateOrderAssignmentStatus,
+  unassignOrderFromAgent } from '../controllers/orderController.js';  // Import order controller methods
 import { authenticate } from '../middleware/authMiddleware.js';  // Import authenticate middleware
 import Order from '../models/order.js'; // Import Order model
 
@@ -120,5 +124,11 @@ router.delete("/:orderId", authenticate, cancelOrder);  // Requires authenticati
 
 // Route to get revenue stats (admin only)
 router.get("/revenue-stats", authenticate, getRevenueStats);  // Only admins can view revenue stats
+
+router.get('/unassigned', getUnassignedOrders);
+router.post('/assign-to-agent', assignOrderToDeliveryAgent);
+router.get('/assignments', getOrderAssignments);
+router.put('/assignment-status', updateOrderAssignmentStatus);
+router.delete('/unassign/:orderId', unassignOrderFromAgent);
 
 export default router;

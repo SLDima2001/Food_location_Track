@@ -1,48 +1,98 @@
-// models/deliveryAgent.js
+// models/deliveryAgent.js - Simple version that works with your existing setup
 
 import mongoose from 'mongoose';
 
-const deliveryAgentSchema = mongoose.Schema({
+const deliveryAgentSchema = new mongoose.Schema({
+  // Unique agent identifier (DA001, DA002, etc.)
   agentId: {
     type: String,
     required: true,
     unique: true
   },
+  
+  // Personal Information
   name: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
-  phoneNumber: {
-    type: String,
-    required: true
-  },
+  
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    lowercase: true,
+    trim: true
   },
-  status: {
+  
+  phoneNumber: {
     type: String,
-    enum: ['Active', 'Inactive', 'On Leave'],
-    default: 'Active'
+    required: true,
+    trim: true
   },
+  
+  // Work Information
   location: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
+  
+  status: {
+    type: String,
+    required: true,
+    enum: ['Active', 'Inactive', 'Busy'],
+    default: 'Active'
+  },
+  
+  // Performance Metrics
+  assignedOrders: {
+    type: Number,
+    default: 0
+  },
+  
+  completedDeliveries: {
+    type: Number,
+    default: 0
+  },
+  
+  rating: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5
+  },
+  
+  // Timestamps
   createdAt: {
     type: Date,
     default: Date.now
   },
+  
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  
+  lastActive: {
+    type: Date,
+    default: Date.now
   }
+}, {
+  timestamps: true // This will automatically handle createdAt and updatedAt
 });
 
-// Update the updatedAt field before saving
-deliveryAgentSchema.pre('save', function (next) {
-  this.updatedAt = Date.now();
+// Index for better performance
+deliveryAgentSchema.index({ agentId: 1 });
+deliveryAgentSchema.index({ email: 1 });
+deliveryAgentSchema.index({ status: 1 });
+
+// Pre-save middleware
+deliveryAgentSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  if (this.email) {
+    this.email = this.email.toLowerCase();
+  }
   next();
 });
 

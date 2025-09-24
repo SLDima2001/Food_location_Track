@@ -39,6 +39,7 @@ import NotFound from './pages/NotFound';
 import FoodSubscriptionPage from './pages/customer/FoodSubscriptionPage';
 import Order from './pages/admin/Order';
 import Map from './pages/admin/Map'
+import AgentManagementDashboard from './pages/admin/AgentManagementDashboard';
 
 const App = () => {
   return (
@@ -82,7 +83,9 @@ const App = () => {
           <Route path="/admin/products" element={<div className="min-h-screen bg-gray-50 py-8"><div className="max-w-7xl mx-auto px-4"><h1 className="text-3xl font-bold text-gray-800">Admin Products</h1><p className="text-gray-600 mt-2">Admin product management - Coming Soon!</p></div></div>} />
           <Route path="/admin/orders" element={<div className="min-h-screen bg-gray-50 py-8"><div className="max-w-7xl mx-auto px-4"><h1 className="text-3xl font-bold text-gray-800">Admin Orders</h1><p className="text-gray-600 mt-2">Admin order management - Coming Soon!</p></div></div>} />
           <Route path="/admin/users" element={<div className="min-h-screen bg-gray-50 py-8"><div className="max-w-7xl mx-auto px-4"><h1 className="text-3xl font-bold text-gray-800">Admin Users</h1><p className="text-gray-600 mt-2">Admin user management - Coming Soon!</p></div></div>} />
-          
+          <Route path="/agentmanagement" element={<AgentManagementDashboard />} />
+
+
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
